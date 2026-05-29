@@ -1,6 +1,6 @@
 let dinero = 90;
 if(dinero>=80){
-    alert("Completas el refresco")
+    console.log("Completas el refresco")
 }else if (dinero<=80){
-    alert("No completas el refresco")
+    console.log("No completas el refresco")
 };

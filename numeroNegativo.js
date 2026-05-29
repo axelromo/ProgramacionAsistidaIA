@@ -1,6 +1,6 @@
 let numero = 10;
 if(numero>=0){
-    alert("Positivo")
+    console.log("Positivo")
 }else{
-    alert("Negativo")
+    console.log("Negativo")
 };
