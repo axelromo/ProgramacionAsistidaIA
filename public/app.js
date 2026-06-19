@@ -174,6 +174,15 @@ async function cargarEventos() {
   try {
     const response = await fetch(`${API_URL}/eventos`);
     const eventos = await response.json();
+    
+    // Verificar si la respuesta es un array
+    if (!Array.isArray(eventos)) {
+      console.error('La respuesta no es un array:', eventos);
+      document.getElementById('eventosList').innerHTML = 
+        '<p class="text-red-500 text-center">Error: La respuesta del servidor no es válida</p>';
+      return;
+    }
+    
     mostrarEventos(eventos);
   } catch (error) {
     console.error('Error:', error);

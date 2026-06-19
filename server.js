@@ -164,9 +164,13 @@ app.post('/api/eventos', async (req, res) => {
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error al crear evento:', error);
+      throw error;
+    }
     res.status(201).json(data);
   } catch (error) {
+    console.error('Error en POST /api/eventos:', error);
     res.status(500).json({ mensaje: 'Error al crear evento' });
   }
 });
