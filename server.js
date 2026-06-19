@@ -148,14 +148,14 @@ app.get('/api/eventos/:id', async (req, res) => {
 app.post('/api/eventos', async (req, res) => {
   try {
     console.log('POST /api/eventos - Body recibido:', req.body);
-    const { titulo, fecha, hora, descripcion } = req.body;
+    const { titulo, fecha, hora, descripcion, latitud, longitud } = req.body;
     
     if (!titulo || !fecha) {
       console.log('Error: Faltan campos requeridos');
       return res.status(400).json({ mensaje: 'Título y fecha son requeridos' });
     }
     
-    console.log('Intentando insertar evento en Supabase:', { titulo, fecha, hora, descripcion });
+    console.log('Intentando insertar evento en Supabase:', { titulo, fecha, hora, descripcion, latitud, longitud });
     
     const { data, error } = await supabase
       .from('eventos')
@@ -163,7 +163,9 @@ app.post('/api/eventos', async (req, res) => {
         titulo,
         fecha,
         hora: hora || '',
-        descripcion: descripcion || ''
+        descripcion: descripcion || '',
+        latitud: latitud || null,
+        longitud: longitud || null
       })
       .select()
       .single();

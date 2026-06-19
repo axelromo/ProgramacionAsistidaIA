@@ -2,6 +2,8 @@ const API_URL = '/api';
 const AUTH_URL = '/api/usuarios';
 
 let currentUser = null;
+let map = null;
+let marker = null;
 
 // Verificar si hay usuario logueado al iniciar
 document.addEventListener('DOMContentLoaded', () => {
@@ -18,11 +20,59 @@ document.addEventListener('DOMContentLoaded', () => {
 function showLogin() {
   document.getElementById('loginForm').classList.remove('hidden');
   document.getElementById('registerForm').classList.add('hidden');
-  document.getElementById('loginTab').classList.remove('bg-gray-200', 'text-gray-700');
-  document.getElementById('loginTab').classList.add('bg-blue-500', 'text-white');
-  document.getElementById('registerTab').classList.remove('bg-green-500', 'text-white');
-  document.getElementById('registerTab').classList.add('bg-gray-200', 'text-gray-700');
-  document.getElementById('authError').classList.add('hidden');
+}
+
+// Función para obtener ubicación del usuario
+function obtenerUbicacion() {
+  if (!navigator.geolocation) {
+    alert('Tu navegador no soporta geolocalización');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      
+      document.getElementById('latitud').value = lat;
+      document.getElementById('longitud').value = lng;
+      
+      inicializarMapa(lat, lng);
+    },
+    (error) => {
+      console.error('Error al obtener ubicación:', error);
+      alert('No se pudo obtener tu ubicación. Por favor, permite el acceso a tu ubicación.');
+    }
+  );
+}
+
+// Función para inicializar el mapa
+function inicializarMapa(lat, lng) {
+  if (map) {
+    map.remove();
+  }
+  
+  map = L.map('map').setView([lat, lng], 13);
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+  
+  marker = L.marker([lat, lng]).addTo(map);
+  
+  // Permitir al usuario hacer clic en el mapa para cambiar la ubicación
+  map.on('click', function(e) {
+    const { lat: newLat, lng: newLng } = e.latlng;
+    
+    if (marker) {
+      marker.setLatLng([newLat, newLng]);
+    } else {
+      marker = L.marker([newLat, newLng]).addTo(map);
+    }
+    
+    document.getElementById('latitud').value = newLat;
+    document.getElementById('longitud').value = newLng;
+  });
 }
 
 // Mostrar pantalla de registro
@@ -145,7 +195,9 @@ document.getElementById('eventoForm').addEventListener('submit', async (e) => {
     titulo: document.getElementById('titulo').value,
     fecha: document.getElementById('fecha').value,
     hora: document.getElementById('hora').value,
-    descripcion: document.getElementById('descripcion').value
+    descripcion: document.getElementById('descripcion').value,
+    latitud: document.getElementById('latitud').value || null,
+    longitud: document.getElementById('longitud').value || null
   };
   
   console.log('Enviando evento:', evento);
