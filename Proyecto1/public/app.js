@@ -1,5 +1,5 @@
-const API_URL = window.API_URL || 'http://localhost:3000/api';
-const AUTH_URL = window.API_URL ? `${window.API_URL}/usuarios` : 'http://localhost:3000/api/usuarios';
+const API_URL = '/api';
+const AUTH_URL = '/api/usuarios';
 
 let currentUser = null;
 
