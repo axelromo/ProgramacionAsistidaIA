@@ -147,11 +147,15 @@ app.get('/api/eventos/:id', async (req, res) => {
 // POST - Crear nuevo evento
 app.post('/api/eventos', async (req, res) => {
   try {
+    console.log('POST /api/eventos - Body recibido:', req.body);
     const { titulo, fecha, hora, descripcion } = req.body;
     
     if (!titulo || !fecha) {
+      console.log('Error: Faltan campos requeridos');
       return res.status(400).json({ mensaje: 'Título y fecha son requeridos' });
     }
+    
+    console.log('Intentando insertar evento en Supabase:', { titulo, fecha, hora, descripcion });
     
     const { data, error } = await supabase
       .from('eventos')
@@ -165,13 +169,17 @@ app.post('/api/eventos', async (req, res) => {
       .single();
     
     if (error) {
-      console.error('Error al crear evento:', error);
+      console.error('Error de Supabase al crear evento:', error);
+      console.error('Detalles del error:', JSON.stringify(error, null, 2));
       throw error;
     }
+    
+    console.log('Evento creado exitosamente:', data);
     res.status(201).json(data);
   } catch (error) {
     console.error('Error en POST /api/eventos:', error);
-    res.status(500).json({ mensaje: 'Error al crear evento' });
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ mensaje: 'Error al crear evento', error: error.message });
   }
 });
 

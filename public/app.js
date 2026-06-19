@@ -148,6 +148,8 @@ document.getElementById('eventoForm').addEventListener('submit', async (e) => {
     descripcion: document.getElementById('descripcion').value
   };
   
+  console.log('Enviando evento:', evento);
+  
   try {
     const response = await fetch(`${API_URL}/eventos`, {
       method: 'POST',
