@@ -2,39 +2,66 @@ const API_URL = window.API_URL || 'http://localhost:3000/api';
 const AUTH_URL = window.API_URL ? `${window.API_URL}/usuarios` : 'http://localhost:3000/api/usuarios';
 
 let currentUser = null;
+let clerk = null;
 
-// Verificar si hay usuario logueado al iniciar
-document.addEventListener('DOMContentLoaded', () => {
-  const savedUser = localStorage.getItem('currentUser');
-  if (savedUser) {
-    currentUser = JSON.parse(savedUser);
-    showMainScreen();
-  } else {
-    showAuthScreen();
+// Inicializar Clerk (con CDN + data-clerk-publishable-key, NO usar "new Clerk()")
+async function initClerk() {
+  try {
+    if (!window.Clerk) {
+      throw new Error('El script de Clerk no se cargó. Revisa la consola de red.');
+    }
+
+    clerk = window.Clerk;
+    await clerk.load();
+
+    console.log('Clerk inicializado correctamente');
+    
+    // Verificar si hay sesión activa
+    if (clerk.user) {
+      console.log('Usuario autenticado:', clerk.user);
+      currentUser = {
+        email: clerk.user.primaryEmailAddress?.emailAddress,
+        nombre: clerk.user.firstName || clerk.user.primaryEmailAddress?.emailAddress,
+        userId: clerk.user.id
+      };
+      showMainScreen();
+    } else {
+      console.log('No hay usuario, mostrando login');
+      // Mostrar formulario de autenticación de Clerk
+      clerk.mountSignIn(document.getElementById('clerk-auth'), {
+        appearance: {
+          elements: {
+            card: {
+              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+              borderRadius: '0.5rem'
+            }
+          }
+        }
+      });
+      
+      // Escuchar cambios de autenticación
+      clerk.addListener(() => {
+        console.log('Estado de autenticación cambiado');
+        if (clerk.user) {
+          currentUser = {
+            email: clerk.user.primaryEmailAddress?.emailAddress,
+            nombre: clerk.user.firstName || clerk.user.primaryEmailAddress?.emailAddress,
+            userId: clerk.user.id
+          };
+          showMainScreen();
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error al inicializar Clerk:', error);
+    document.getElementById('clerk-auth').innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
   }
+}
+
+// Iniciar cuando el DOM y el script de Clerk estén listos
+window.addEventListener('load', () => {
+  initClerk();
 });
-
-// Mostrar pantalla de login
-function showLogin() {
-  document.getElementById('loginForm').classList.remove('hidden');
-  document.getElementById('registerForm').classList.add('hidden');
-  document.getElementById('loginTab').classList.remove('bg-gray-200', 'text-gray-700');
-  document.getElementById('loginTab').classList.add('bg-blue-500', 'text-white');
-  document.getElementById('registerTab').classList.remove('bg-green-500', 'text-white');
-  document.getElementById('registerTab').classList.add('bg-gray-200', 'text-gray-700');
-  document.getElementById('authError').classList.add('hidden');
-}
-
-// Mostrar pantalla de registro
-function showRegister() {
-  document.getElementById('loginForm').classList.add('hidden');
-  document.getElementById('registerForm').classList.remove('hidden');
-  document.getElementById('loginTab').classList.remove('bg-blue-500', 'text-white');
-  document.getElementById('loginTab').classList.add('bg-gray-200', 'text-gray-700');
-  document.getElementById('registerTab').classList.remove('bg-gray-200', 'text-gray-700');
-  document.getElementById('registerTab').classList.add('bg-green-500', 'text-white');
-  document.getElementById('authError').classList.add('hidden');
-}
 
 // Mostrar pantalla de autenticación
 function showAuthScreen() {
@@ -51,91 +78,25 @@ function showMainScreen() {
 }
 
 // Cerrar sesión
-function logout() {
-  currentUser = null;
-  localStorage.removeItem('currentUser');
-  showAuthScreen();
-  showLogin();
-}
-
-// Manejar registro
-const registerForm = document.getElementById('registerForm');
-if (registerForm) {
-  registerForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    console.log('Formulario de registro enviado');
-    
-    const nombre = document.getElementById('registerNombre').value;
-    const email = document.getElementById('registerEmail').value;
-    const password = document.getElementById('registerPassword').value;
-    
-    console.log('Datos del registro:', { email, nombre });
-    
-    try {
-      const response = await fetch(`${AUTH_URL}/registro`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email, password, nombre })
-      });
-      
-      console.log('Respuesta del servidor:', response.status);
-      
-      const data = await response.json();
-      console.log('Datos de respuesta:', data);
-      
-      if (response.ok) {
-        alert('Registro exitoso. Por favor inicia sesión.');
-        showLogin();
-        document.getElementById('registerForm').reset();
-      } else {
-        document.getElementById('authError').textContent = data.mensaje || 'Error en el registro';
-        document.getElementById('authError').classList.remove('hidden');
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      document.getElementById('authError').textContent = 'Error de conexión con el servidor';
-      document.getElementById('authError').classList.remove('hidden');
-    }
-  });
-} else {
-  console.error('No se encontró el formulario de registro');
-}
-
-// Manejar login
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  
-  const email = document.getElementById('loginEmail').value;
-  const password = document.getElementById('loginPassword').value;
-  
-  try {
-    const response = await fetch(`${AUTH_URL}/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email, password })
-    });
-    
-    const data = await response.json();
-    
-    if (response.ok) {
-      currentUser = data;
-      localStorage.setItem('currentUser', JSON.stringify(currentUser));
-      showMainScreen();
-      document.getElementById('loginForm').reset();
-    } else {
-      document.getElementById('authError').textContent = data.mensaje || 'Error al iniciar sesión';
-      document.getElementById('authError').classList.remove('hidden');
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    document.getElementById('authError').textContent = 'Error de conexión con el servidor';
-    document.getElementById('authError').classList.remove('hidden');
+async function logout() {
+  if (clerk) {
+    await clerk.signOut();
   }
-});
+  currentUser = null;
+  showAuthScreen();
+  if (clerk) {
+    clerk.mountSignIn(document.getElementById('clerk-auth'), {
+      appearance: {
+        elements: {
+          card: {
+            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+            borderRadius: '0.5rem'
+          }
+        }
+      }
+    });
+  }
+}
 
 // Formulario para agregar evento
 document.getElementById('eventoForm').addEventListener('submit', async (e) => {
@@ -149,10 +110,12 @@ document.getElementById('eventoForm').addEventListener('submit', async (e) => {
   };
   
   try {
+    const token = await clerk.session?.getToken();
     const response = await fetch(`${API_URL}/eventos`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify(evento)
     });
@@ -172,7 +135,12 @@ document.getElementById('eventoForm').addEventListener('submit', async (e) => {
 // Cargar todos los eventos
 async function cargarEventos() {
   try {
-    const response = await fetch(`${API_URL}/eventos`);
+    const token = await clerk.session?.getToken();
+    const response = await fetch(`${API_URL}/eventos`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     const eventos = await response.json();
     mostrarEventos(eventos);
   } catch (error) {
@@ -217,8 +185,12 @@ async function eliminarEvento(id) {
   if (!confirm('¿Estás seguro de eliminar este evento?')) return;
   
   try {
+    const token = await clerk.session?.getToken();
     const response = await fetch(`${API_URL}/eventos/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     });
     
     if (response.ok) {

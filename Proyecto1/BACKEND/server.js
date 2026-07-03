@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
+const { verifyToken } = require('@clerk/backend');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
 
@@ -14,6 +15,27 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.static('public'));
+
+// Middleware de autenticación de Clerk (manual)
+const authenticateClerk = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ mensaje: 'No autorizado - Token missing' });
+    }
+    
+    const token = authHeader.substring(7);
+    const payload = await verifyToken(token, {
+      secretKey: process.env.CLERK_SECRET_KEY
+    });
+    
+    req.auth = { userId: payload.sub };
+    next();
+  } catch (error) {
+    console.error('Error de autenticación:', error);
+    return res.status(401).json({ mensaje: 'No autorizado - Token invalid' });
+  }
+};
 
 // Conexión a Supabase
 const supabase = createClient(
@@ -31,90 +53,14 @@ app.get('/api/saludo',(req, res)=>{
   res.json('Hola Mundo');
 });
 
-// POST - Registrar nuevo usuario
-app.post('/api/usuarios/registro', async (req, res) => {
+// GET - Obtener todos los eventos (protegido)
+app.get('/api/eventos', authenticateClerk, async (req, res) => {
   try {
-    const { email, password, nombre } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({ mensaje: 'Email y contraseña son requeridos' });
-    }
-    
-    // Verificar si el usuario ya existe
-    const { data: existingUser } = await supabase
-      .from('usuarios')
-      .select('email')
-      .eq('email', email)
-      .single();
-    
-    if (existingUser) {
-      return res.status(400).json({ mensaje: 'El email ya está registrado' });
-    }
-    
-    // Hashear contraseña
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Crear usuario
-    const { data, error } = await supabase
-      .from('usuarios')
-      .insert({
-        email,
-        password: hashedPassword,
-        nombre: nombre || ''
-      })
-      .select('id, email, nombre, created_at')
-      .single();
-    
-    if (error) throw error;
-    res.status(201).json(data);
-  } catch (error) {
-    console.error('Error en registro:', error);
-    res.status(500).json({ mensaje: 'Error al registrar usuario' });
-  }
-});
-
-// POST - Login de usuario
-app.post('/api/usuarios/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({ mensaje: 'Email y contraseña son requeridos' });
-    }
-    
-    // Buscar usuario por email
-    const { data: user, error } = await supabase
-      .from('usuarios')
-      .select('*')
-      .eq('email', email)
-      .single();
-    
-    if (error || !user) {
-      return res.status(401).json({ mensaje: 'Credenciales inválidas' });
-    }
-    
-    // Verificar contraseña
-    const validPassword = await bcrypt.compare(password, user.password);
-    
-    if (!validPassword) {
-      return res.status(401).json({ mensaje: 'Credenciales inválidas' });
-    }
-    
-    // Retornar datos del usuario (sin contraseña)
-    const { password: _, ...userWithoutPassword } = user;
-    res.json(userWithoutPassword);
-  } catch (error) {
-    console.error('Error en login:', error);
-    res.status(500).json({ mensaje: 'Error al iniciar sesión' });
-  }
-});
-
-// GET - Obtener todos los eventos
-app.get('/api/eventos', async (req, res) => {
-  try {
+    const userId = req.auth.userId;
     const { data, error } = await supabase
       .from('eventos')
       .select('*')
+      .eq('user_id', userId)
       .order('fecha', { ascending: true })
       .order('hora', { ascending: true });
     
@@ -144,10 +90,11 @@ app.get('/api/eventos/:id', async (req, res) => {
   }
 });
 
-// POST - Crear nuevo evento
-app.post('/api/eventos', async (req, res) => {
+// POST - Crear nuevo evento (protegido)
+app.post('/api/eventos', authenticateClerk, async (req, res) => {
   try {
     const { titulo, fecha, hora, descripcion } = req.body;
+    const userId = req.auth.userId;
     
     if (!titulo || !fecha) {
       return res.status(400).json({ mensaje: 'Título y fecha son requeridos' });
@@ -159,7 +106,8 @@ app.post('/api/eventos', async (req, res) => {
         titulo,
         fecha,
         hora: hora || '',
-        descripcion: descripcion || ''
+        descripcion: descripcion || '',
+        user_id: userId
       })
       .select()
       .single();
@@ -198,13 +146,15 @@ app.put('/api/eventos/:id', async (req, res) => {
   }
 });
 
-// DELETE - Eliminar evento
-app.delete('/api/eventos/:id', async (req, res) => {
+// DELETE - Eliminar evento (protegido)
+app.delete('/api/eventos/:id', authenticateClerk, async (req, res) => {
   try {
+    const userId = req.auth.userId;
     const { error } = await supabase
       .from('eventos')
       .delete()
-      .eq('id', req.params.id);
+      .eq('id', req.params.id)
+      .eq('user_id', userId);
     
     if (error) throw error;
     res.json({ mensaje: 'Evento eliminado' });
